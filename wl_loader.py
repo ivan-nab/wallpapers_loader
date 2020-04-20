@@ -1,60 +1,8 @@
-import calendar
-import os
 import time
 from datetime import datetime
-from urllib.parse import urljoin
-import requests
-from lxml import etree
-
-import settings
-
-
-def parse_web_page(page_body):
-    tree = etree.HTML(str(page_body))
-    result = tree.xpath(settings.XPATH_REF)
-    links_dict = {}
-    for r in result:
-        links_dict.setdefault(r.text, []).append(r.attrib['href'])
-    return links_dict
-
-
-def get_data(url):
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.content
-
-
-def construct_url(date):
-    month = date.month
-    year = date.year
-
-    month_str = str(month).zfill(2)
-
-    if month == 12:
-        collection_month = 1
-        collection_year = year + 1
-    else:
-        collection_month = month + 1
-        collection_year = year
-    collection_month_name = calendar.month_name[collection_month].lower()
-    walpapers_page_url = f"{year}/{month_str}/desktop-wallpaper-calendars-{collection_month_name}-{collection_year}/"
-    return urljoin(settings.WALLPAPERS_URL, walpapers_page_url)
-
-
-def download_wallpaper(url):
-    response = requests.get(url, stream=True)
-
-    if response.status_code == 200:
-        wallpaper_filename = os.path.basename(url)
-        wallpaper_dir = '.\\wallpapers'
-        if not os.path.exists(wallpaper_dir):
-            os.mkdir(wallpaper_dir)
-        filepath = os.path.join(wallpaper_dir, wallpaper_filename)
-        print(f'downloading {url} to {filepath}')
-        with open(filepath, 'wb') as f:
-            for chunk in response:
-                f.write(chunk)
-        return filepath
+from wallpapers_loader import settings
+from wallpapers_loader.async_loader import download_files
+from wallpapers_loader.image_finder import construct_url, get_data, parse_web_page
 
 
 def download_wallpapers(date, resolution):
@@ -62,10 +10,10 @@ def download_wallpapers(date, resolution):
     data = get_data(url)
     parsed_data = parse_web_page(data)
     if parsed_data:
-        links_list = parsed_data.get(resolution)
-        if links_list:
-            for link in links_list:
-                download_wallpaper(link)
+        urls = parsed_data.get(resolution)
+        if urls:
+            print("Downloading wallpapers")
+            download_files(urls, settings.WALLPAPERS_DIR)
         else:
             print(f"Wallpapers with resolution {resolution} not found")
     else:
@@ -104,3 +52,4 @@ if __name__ == "__main__":
                 example: wl_loader.py 12-2020 1920x1080\n
             ''')
 
+       
